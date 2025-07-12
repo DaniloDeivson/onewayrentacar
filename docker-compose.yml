@@ -1,20 +1,14 @@
 version: "3.8"
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: oneway-app
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.oneway.rule=PathPrefix(`/`)"
-      - "traefik.http.services.oneway.loadbalancer.server.port=80"
-    networks:
-      - traefik
+    ports:
+      - "80:80"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 networks:
   traefik:
