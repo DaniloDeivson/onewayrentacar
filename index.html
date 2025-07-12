@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OneWay Rent A Car - Gestão de Frota</title>
+    <meta name="description" content="Sistema completo de gestão para locadora de veículos" />
+    
+    <!-- Preconnect to improve performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/svg+xml" href="/vite.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e40af">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OneWay Rent A Car">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="OneWay Rent A Car - Sistema de Gestão">
+    <meta property="og:description" content="Sistema completo de gestão para locadora de veículos">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://oneway-rent-a-car.netlify.app">
+    
+    <!-- Web3 Extension Protection - Enhanced for Mobile -->
+    <script>
+      // Enhanced Web3 extension blocking for mobile compatibility
+      (function() {
+        'use strict';
+        
+        const blockWeb3Extensions = () => {
+          try {
+            // List of known Web3 extension properties
+            const web3Properties = [
+              'ethereum', 'web3', 'solana', 'exodus', 'mises', 'phantom', 
+              'metamask', 'coinbase', 'trustwallet', 'binance', 'crypto'
+            ];
+            
+            web3Properties.forEach(prop => {
+              try {
+                delete window[prop];
+                Object.defineProperty(window, prop, {
+                  value: undefined,
+                  writable: false,
+                  configurable: false
+                });
+              } catch (e) {
+                // Property might be non-configurable, ignore
+              }
+            });
+            
+            // Block Web3 script injections
+            const originalAppendChild = Node.prototype.appendChild;
+            const originalInsertBefore = Node.prototype.insertBefore;
+            
+            Node.prototype.appendChild = function(child) {
+              if (child.src && (
+                child.src.includes('mises') || 
+                child.src.includes('web3') || 
+                child.src.includes('ethereum') ||
+                child.src.includes('metamask') ||
+                child.src.includes('wallet')
+              )) {
+                return child; // Block the script
+              }
+              return originalAppendChild.call(this, child);
+            };
+            
+            Node.prototype.insertBefore = function(child, before) {
+              if (child.src && (
+                child.src.includes('mises') || 
+                child.src.includes('web3') || 
+                child.src.includes('ethereum') ||
+                child.src.includes('metamask') ||
+                child.src.includes('wallet')
+              )) {
+                return child; // Block the script
+              }
+              return originalInsertBefore.call(this, child, before);
+            };
+            
+          } catch (e) {
+            // Ignore blocking errors
+          }
+        };
+        
+        // Block immediately
+        blockWeb3Extensions();
+        
+        // Block on DOM ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', blockWeb3Extensions);
+        }
+        
+        // Block on window load
+        window.addEventListener('load', blockWeb3Extensions);
+        
+        // Periodic blocking for persistent extensions
+        setInterval(blockWeb3Extensions, 1000);
+        
+      })();
+    </script>
+    
+
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

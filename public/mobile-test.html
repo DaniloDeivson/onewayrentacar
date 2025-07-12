@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Test - OneWay</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #16a34a;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .info {
+            color: #0369a1;
+            margin: 10px 0;
+        }
+        .button {
+            background: #0ea5e9;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 OneWay Mobile Test</h1>
+        <p class="success">✅ Nginx funcionando no mobile!</p>
+        <p class="info">🕒 <span id="timestamp"></span></p>
+        <p class="info">📱 User Agent: <span id="userAgent"></span></p>
+        <a href="/" class="button">Ir para App Principal</a>
+        <a href="/login" class="button">Teste Login Route</a>
+    </div>
+    
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        document.getElementById('userAgent').textContent = navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+    </script>
+</body>
+</html> 

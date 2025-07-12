@@ -1,0 +1,21 @@
+# Redirects para React Router (SPA)
+/login /index.html 200
+/dashboard /index.html 200
+/admin /index.html 200
+/fleet /index.html 200
+/contracts /index.html 200
+/maintenance /index.html 200
+/finance /index.html 200
+/inventory /index.html 200
+/suppliers /index.html 200
+/statistics /index.html 200
+/employees /index.html 200
+/fines /index.html 200
+/costs /index.html 200
+/notas /index.html 200
+/cobranca /index.html 200
+/inspections /index.html 200
+/purchase-orders /index.html 200
+
+# Fallback para todas as outras rotas
+/* /index.html 200 

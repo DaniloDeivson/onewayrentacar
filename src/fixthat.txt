@@ -1,0 +1,108 @@
+{code: "42703", details: null, hint: null, message: "column employees.customer_id does not exist"}
+code
+: 
+"42703"
+details
+: 
+null
+hint
+: 
+null
+message
+
+: 
+"column employees.customer_id does not exist"
+
+
+create table public.employees (
+  id uuid not null default gen_random_uuid (),
+  tenant_id uuid null,
+  name text not null,
+  role text not null,
+  employee_code text null,
+  contact_info jsonb null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  permissions jsonb null default '{}'::jsonb,
+  roles_extra text[] null,
+  constraint employees_pkey primary key (id),
+  constraint employees_tenant_id_fkey foreign KEY (tenant_id) references tenants (id) on delete CASCADE,
+  constraint employees_role_check check (
+    (
+      role = any (
+        array[
+          'Admin'::text,
+          'Manager'::text,
+          'Mechanic'::text,
+          'Inspector'::text,
+          'FineAdmin'::text,
+          'Sales'::text,
+          'User'::text,
+          'Driver'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_active on public.employees using btree (active) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_email on public.employees using gin (contact_info) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_email_active on public.employees using btree (((contact_info ->> 'email'::text))) TABLESPACE pg_default
+where
+  (active = true);
+
+create index IF not exists idx_employees_email_tenant on public.employees using btree (((contact_info ->> 'email'::text)), tenant_id) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_email_text on public.employees using btree (lower((contact_info ->> 'email'::text))) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_role on public.employees using btree (role) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_tenant on public.employees using btree (tenant_id) TABLESPACE pg_default;
+
+create index IF not exists idx_employees_tenant_id on public.employees using btree (tenant_id) TABLESPACE pg_default;
+
+create trigger audit_employees_changes
+after INSERT
+or DELETE
+or
+update on employees for EACH row
+execute FUNCTION log_changes ();
+
+create trigger employees_role_validation BEFORE INSERT
+or
+update on employees for EACH row
+execute FUNCTION validate_employee_role ();
+
+create trigger employees_updated_at BEFORE
+update on employees for EACH row
+execute FUNCTION update_updated_at ();
+
+create trigger employees_unique_email BEFORE INSERT
+or
+update on employees for EACH row
+execute FUNCTION validate_unique_email ();
+
+create trigger employees_removed_sync
+after
+update on employees for EACH row when (
+  old.active = true
+  and new.active = false
+)
+execute FUNCTION sync_removed_users ();
+
+create trigger ensure_tenant_id_employees BEFORE INSERT
+or
+update on employees for EACH row
+execute FUNCTION set_tenant_id ();
+
+create trigger normalize_email_trigger BEFORE INSERT
+or
+update on employees for EACH row
+execute FUNCTION normalize_employee_email ();
+
+create trigger trg_employees_updated_at BEFORE
+update on employees for EACH row
+execute FUNCTION update_updated_at_column ();
