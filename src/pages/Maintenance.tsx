@@ -281,7 +281,9 @@ export const Maintenance: React.FC = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   
   // Hook para buscar peças da ordem de serviço selecionada
-  const { serviceOrderParts } = useServiceOrderParts(isViewModalOpen && selectedServiceNote ? selectedServiceNote.id : undefined);
+  const { serviceOrderParts, loading: partsLoading } = useServiceOrderParts(
+    isViewModalOpen && selectedServiceNote ? selectedServiceNote.id : undefined
+  );
 
   const filteredNotes = serviceNotes.filter(note =>
     note.vehicles?.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -930,7 +932,20 @@ export const Maintenance: React.FC = () => {
             </div>
 
             {/* Peças Utilizadas */}
-            {serviceOrderParts && serviceOrderParts.length > 0 && (
+            {partsLoading && (
+              <div className="border-t pt-6 mt-6">
+                <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center">
+                  <Package className="h-5 w-5 mr-2" />
+                  Peças Utilizadas
+                </h3>
+                <div className="text-center py-4 text-secondary-500">
+                  <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                  <p>Carregando peças...</p>
+                </div>
+              </div>
+            )}
+            
+            {!partsLoading && serviceOrderParts && serviceOrderParts.length > 0 && (
               <div className="border-t pt-6 mt-6">
                 <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center">
                   <Package className="h-5 w-5 mr-2" />
@@ -985,7 +1000,7 @@ export const Maintenance: React.FC = () => {
             )}
 
             {/* Quando não há peças */}
-            {serviceOrderParts && serviceOrderParts.length === 0 && (
+            {!partsLoading && serviceOrderParts && serviceOrderParts.length === 0 && (
               <div className="border-t pt-6 mt-6">
                 <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center">
                   <Package className="h-5 w-5 mr-2" />
@@ -994,6 +1009,10 @@ export const Maintenance: React.FC = () => {
                 <div className="text-center py-4 text-secondary-500">
                   <Package className="h-8 w-8 mx-auto mb-2" />
                   <p>Nenhuma peça foi utilizada nesta ordem de serviço</p>
+                  <p className="text-xs mt-2">
+                    Debug: Service Note ID: {selectedServiceNote?.id} | 
+                    Parts Count: {serviceOrderParts?.length || 0}
+                  </p>
                 </div>
               </div>
             )}
