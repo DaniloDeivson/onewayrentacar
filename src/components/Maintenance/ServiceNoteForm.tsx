@@ -278,7 +278,7 @@ export const ServiceNoteForm: React.FC<ServiceNoteFormProps> = ({
             required
           >
             <option value="">Selecione o tipo</option>
-            {maintenanceTypes.map(type => (
+            {[...new Map(maintenanceTypes.map(type => [type.name, type])).values()].map(type => (
               <option key={type.id} value={type.name}>
                 {type.name}
               </option>
