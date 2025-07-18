@@ -257,25 +257,49 @@ export const DriverRecords: React.FC = () => {
     if (!vehicleIds.length) return;
     const mileageMap: Record<string, number> = {};
     for (const vehicleId of vehicleIds) {
-      // Busca o último registro de abastecimento para o veículo
-      const { data, error } = await supabase
-        .from('fuel_records')
-        .select('mileage')
-        .eq('vehicle_id', vehicleId)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!error && data && typeof data.mileage === 'number') {
-        mileageMap[vehicleId] = data.mileage;
-      } else {
-        // Se não houver registro, pega a km inicial do veículo (só Vehicle tem mileage)
+      // Buscar a maior quilometragem entre fuel_records e inspections
+      const [fuelResult, inspectionResult] = await Promise.all([
+        // Busca o último registro de abastecimento para o veículo
+        supabase
+          .from('fuel_records')
+          .select('mileage')
+          .eq('vehicle_id', vehicleId)
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // Busca a última inspeção (check-in/check-out) para o veículo
+        supabase
+          .from('inspections')
+          .select('mileage')
+          .eq('vehicle_id', vehicleId)
+          .order('inspected_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      ]);
+
+      let maxMileage = 0;
+      
+      // Verificar quilometragem de fuel_records
+      if (!fuelResult.error && fuelResult.data && typeof fuelResult.data.mileage === 'number') {
+        maxMileage = Math.max(maxMileage, fuelResult.data.mileage);
+      }
+      
+      // Verificar quilometragem de inspections
+      if (!inspectionResult.error && inspectionResult.data && typeof inspectionResult.data.mileage === 'number') {
+        maxMileage = Math.max(maxMileage, inspectionResult.data.mileage);
+      }
+      
+      // Se não houver registros, pegar a km do veículo
+      if (maxMileage === 0) {
         const v = driverVehicles.find(v => v.id === vehicleId);
         if (v && typeof v.mileage === 'number') {
-          mileageMap[vehicleId] = v.mileage;
+          maxMileage = v.mileage;
         } else {
-          mileageMap[vehicleId] = 0;
+          maxMileage = 0;
         }
       }
+      
+      mileageMap[vehicleId] = maxMileage;
     }
     setLastMileage(mileageMap);
   };

@@ -342,7 +342,7 @@ export const FineForm: React.FC<FineFormProps> = ({
             className="w-full border border-secondary-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Selecione um usuário responsável</option>
-            {employees.filter(user => user.active && user.role === 'Mechanic').map(user => (
+            {employees.filter(user => user.active && user.role === 'Driver').map(user => (
               <option key={user.id} value={user.id}>
                 {user.name}
                 {user.role ? ` (${user.role})` : ''}

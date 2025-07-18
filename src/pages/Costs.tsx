@@ -734,7 +734,7 @@ const CostModal: React.FC<{
 };
 
 export const Costs: React.FC = () => {
-  const { costs, loading, createCost, updateCost, updateCostEstimate, fetchRealCosts, debugAutomaticCosts, reprocessInspectionCosts, authorizePurchase, refetch, markAsPaid } = useCosts();
+  const { costs, loading, createCost, updateCost, updateCostEstimate, fetchRealCosts, debugAutomaticCosts, reprocessInspectionCosts, authorizePurchase, refetch, markAsPaid, approveFineCost, revertFineApproval } = useCosts();
   const { vehicles } = useVehicles();
   const { employees } = useEmployees();
   const { isAdmin, isManager } = useAuth();
@@ -752,7 +752,7 @@ export const Costs: React.FC = () => {
     error: errorRecurring
   } = useRecurringCosts();
   const { contracts: recurringContracts, loading: loadingContracts, error: errorContracts } = useRecurringContracts();
-  const [activeTab, setActiveTab] = useState<'costs' | 'recurring'>('costs');
+  const [activeTab, setActiveTab] = useState<'costs' | 'pending' | 'recurring'>('costs');
   const [showRecurringForm, setShowRecurringForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState<string>('');
@@ -779,6 +779,11 @@ export const Costs: React.FC = () => {
     recurrence_type: 'monthly' as 'monthly' | 'weekly' | 'yearly',
     recurrence_day: 1
   });
+
+  // Reset page when changing tabs
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   // Debug automatic costs on component mount
   useEffect(() => {
@@ -827,14 +832,21 @@ export const Costs: React.FC = () => {
     return matchesSearch && matchesVehicle && matchesCustomer && matchesEmployee && matchesContract;
   });
 
+  // Custos aprovados (não pendentes) - para o total de custos
+  const approvedCosts = filteredCosts.filter(cost => cost.status !== 'Pendente');
+  
+  // Custos pendentes - para a aba de pendentes
+  const pendingCosts = filteredCosts.filter(cost => cost.status === 'Pendente');
+
   // Get unique departments for filter
   const departments = ['Cobrança', 'Manutenção', 'Administrativo', 'Financeiro'];
   const uniqueDepartments = [...new Set(costs.map(cost => cost.department).filter(Boolean))];
   const allDepartments = [...new Set([...departments, ...uniqueDepartments])];
 
   // Paginação
-  const totalPages = Math.ceil(filteredCosts.length / ITEMS_PER_PAGE);
-  const paginatedCosts = filteredCosts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const costsToShow = activeTab === 'pending' ? pendingCosts : approvedCosts;
+  const totalPages = Math.ceil(costsToShow.length / ITEMS_PER_PAGE);
+  const paginatedCosts = costsToShow.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const handleView = (cost: Cost) => {
     // Evita travamento: limpa modal de edição, garante selectedCost atualizado e abre modal de visualização
@@ -908,6 +920,44 @@ export const Costs: React.FC = () => {
       } catch (error) {
         console.error('Error authorizing purchase:', error);
         alert('Erro ao autorizar compra: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      }
+    }
+  };
+
+  const handleApproveFine = async (cost: Cost) => {
+    // Only Admin and Manager can approve fines
+    if (!isAdmin && !isManager) {
+      alert('Apenas administradores e gerentes podem aprovar multas.');
+      return;
+    }
+
+    if (confirm('Confirmar aprovação da multa? Isso marcará a multa como paga.')) {
+      try {
+        await approveFineCost(cost.id);
+        // Refresh the costs list to show updated status
+        await refetch();
+      } catch (error) {
+        console.error('Error approving fine:', error);
+        alert('Erro ao aprovar multa: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      }
+    }
+  };
+
+  const handleRevertFineApproval = async (cost: Cost) => {
+    // Only Admin and Manager can revert fine approvals
+    if (!isAdmin && !isManager) {
+      alert('Apenas administradores e gerentes podem reverter aprovações de multas.');
+      return;
+    }
+
+    if (confirm('Confirmar reversão da aprovação da multa? Isso marcará a multa como pendente novamente.')) {
+      try {
+        await revertFineApproval(cost.id);
+        // Refresh the costs list to show updated status
+        await refetch();
+      } catch (error) {
+        console.error('Error reverting fine approval:', error);
+        alert('Erro ao reverter aprovação da multa: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
       }
     }
   };
@@ -1024,11 +1074,14 @@ export const Costs: React.FC = () => {
     }
   };
 
-  const totalCosts = filteredCosts.reduce((sum, cost) => sum + cost.amount, 0);
-  const pendingCosts = filteredCosts.filter(cost => cost.status === 'Pendente').length;
-  const costsToDefine = filteredCosts.filter(cost => cost.amount === 0 && cost.status === 'Pendente').length;
+  const totalCosts = approvedCosts.reduce((sum, cost) => sum + cost.amount, 0);
+  const pendingCostsCount = pendingCosts.length;
+  const costsToDefine = pendingCosts.filter(cost => cost.amount === 0).length;
   const automaticCosts = filteredCosts.filter(cost => cost.origin !== 'Manual').length;
   const collectionCosts = filteredCosts.filter(cost => cost.department === 'Cobrança').length;
+  
+  // Estatísticas para custos pendentes
+  const pendingCostsAmount = pendingCosts.reduce((sum, cost) => sum + cost.amount, 0);
 
   if (loading) {
     return (
@@ -1094,7 +1147,17 @@ export const Costs: React.FC = () => {
               }`}
           >
             <DollarSign className="h-4 w-4 inline mr-2" />
-            Custos Avulsos
+            Custos Aprovados
+          </button>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pending'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300'
+              }`}
+          >
+            <AlertTriangle className="h-4 w-4 inline mr-2" />
+            Pendentes ({pendingCostsCount})
           </button>
           <button
             onClick={() => setActiveTab('recurring')}
@@ -1150,7 +1213,7 @@ export const Costs: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-secondary-600 text-xs lg:text-sm font-medium">Custos Pendentes</p>
-                    <p className="text-xl lg:text-2xl font-bold text-secondary-900">{pendingCosts}</p>
+                    <p className="text-xl lg:text-2xl font-bold text-secondary-900">{pendingCostsCount}</p>
                   </div>
                   <div className="h-8 w-8 lg:h-12 lg:w-12 bg-warning-100 rounded-lg flex items-center justify-center">
                     <Calendar className="h-4 w-4 lg:h-6 lg:w-6 text-warning-600" />
@@ -1249,7 +1312,7 @@ export const Costs: React.FC = () => {
             <CardHeader className="p-4 lg:p-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-secondary-900">
-                  Lançamentos de Custos ({filteredCosts.length})
+                  Custos Aprovados ({approvedCosts.length})
                 </h3>
                 <Button variant="secondary" size="sm" onClick={refetch}>
                   <RefreshCw className="h-4 w-4 mr-2" />
@@ -1463,6 +1526,288 @@ export const Costs: React.FC = () => {
               )}
 
               <div className="flex justify-between items-center mt-4">
+                <button
+                  className="px-3 py-1 rounded bg-secondary-100 text-secondary-700 disabled:opacity-50"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </button>
+                <span>Página {currentPage} de {totalPages}</span>
+                <button
+                  className="px-3 py-1 rounded bg-secondary-100 text-secondary-700 disabled:opacity-50"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Próxima
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Pending Costs Tab */}
+      {activeTab === 'pending' && (
+        <>
+          {/* Summary Cards for Pending Costs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-secondary-600 text-xs lg:text-sm font-medium">Total Pendente</p>
+                    <p className="text-xl lg:text-2xl font-bold text-warning-600">
+                      R$ {pendingCostsAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="h-8 w-8 lg:h-12 lg:w-12 bg-warning-100 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 lg:h-6 lg:w-6 text-warning-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-secondary-600 text-xs lg:text-sm font-medium">Custos Pendentes</p>
+                    <p className="text-xl lg:text-2xl font-bold text-secondary-900">{pendingCostsCount}</p>
+                  </div>
+                  <div className="h-8 w-8 lg:h-12 lg:w-12 bg-warning-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="h-4 w-4 lg:h-6 lg:w-6 text-warning-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-secondary-600 text-xs lg:text-sm font-medium">Valores A Definir</p>
+                    <p className="text-xl lg:text-2xl font-bold text-warning-600">{costsToDefine}</p>
+                    <p className="text-xs text-warning-600 mt-1">Aguardando orçamento</p>
+                  </div>
+                  <div className="h-8 w-8 lg:h-12 lg:w-12 bg-warning-100 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 lg:h-6 lg:w-6 text-warning-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-secondary-600 text-xs lg:text-sm font-medium">Custos Automáticos</p>
+                    <p className="text-xl lg:text-2xl font-bold text-secondary-900">{pendingCosts.filter(cost => cost.origin !== 'Manual').length}</p>
+                    <p className="text-xs text-secondary-600 mt-1">Gerados pelo sistema</p>
+                  </div>
+                  <div className="h-8 w-8 lg:h-12 lg:w-12 bg-info-100 rounded-lg flex items-center justify-center">
+                    <ClipboardCheck className="h-4 w-4 lg:h-6 lg:w-6 text-info-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Alert for costs to define */}
+          {costsToDefine > 0 && (
+            <Card className="border-warning-200 bg-warning-50">
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-3">
+                  <AlertTriangle className="h-5 w-5 text-warning-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-warning-800 font-medium">
+                      {costsToDefine} custo{costsToDefine > 1 ? 's' : ''} com valor a definir
+                    </p>
+                    <p className="text-warning-700 text-sm mt-1">
+                      Estes custos foram gerados automaticamente pelo sistema.
+                      Clique em "Visualizar" para definir o valor após receber o orçamento.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Filtros (somente admin) */}
+          {isAdmin && (
+          <Card>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <select value={vehicleFilter} onChange={e=>setVehicleFilter(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-2">
+                    <option value="">Todos Veículos</option>
+                    {vehicles.map(v=> (
+                      <option key={v.id} value={v.id}>{v.plate}</option>
+                    ))}
+                  </select>
+                  <select value={customerFilter} onChange={e=>setCustomerFilter(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-2">
+                    <option value="">Todos Clientes</option>
+                    {customers.map(c=> (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-2">
+                    <option value="">Todos Funcionários</option>
+                    {employees.map(emp=> (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                  <select value={contractFilter} onChange={e=>setContractFilter(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-2">
+                    <option value="">Todos Contratos</option>
+                    {contracts.map(ct=> (
+                      <option key={ct.id} value={ct.id}>#{ct.contract_number || ct.id.substring(0,8)}</option>
+                    ))}
+                  </select>
+              </div>
+            </CardContent>
+          </Card>
+          )}
+
+          {/* Pending Costs List */}
+          <Card>
+            <CardHeader className="p-4 lg:p-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-warning-900">
+                  Custos Pendentes ({pendingCosts.length})
+                </h3>
+                <Button variant="secondary" size="sm" onClick={refetch}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Atualizar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {pendingCosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <CheckCircle className="h-8 w-8 text-success-400 mb-2" />
+                  <span className="text-success-700 font-medium">Nenhum custo pendente</span>
+                  <span className="text-success-500 text-sm mt-1">Todos os custos foram aprovados ou pagos.</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-secondary-200">
+                    <thead className="bg-warning-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Descrição</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Categoria / Origem</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Valor</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Status</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Data</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Veículo</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Cliente</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Responsável</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-warning-900">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-secondary-100">
+                      {paginatedCosts.map((cost) => (
+                        <tr key={cost.id}>
+                          <td className="px-4 py-2 text-secondary-900 font-medium">{cost.description}</td>
+                          <td className="px-4 py-2 text-secondary-800">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-xs w-fit">{getCategoryLabel(cost)}</Badge>
+                                {cost.status === 'Pendente' && (cost.category === 'Compra' || cost.origin === 'Compras') && (
+                                  <Button
+                                    onClick={() => handleAuthorizePurchase(cost)}
+                                    variant="success"
+                                    size="sm"
+                                    className="ml-1 px-2 py-1 text-xs"
+                                  >
+                                    Aprovar
+                                  </Button>
+                                )}
+                              </div>
+                              <Badge variant="secondary" className="text-xxs w-fit">{getOriginLabel(cost)}</Badge>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-secondary-900 font-semibold">
+                            {cost.amount === 0 && cost.status === 'Pendente' ? (
+                              <span className="text-warning-600">A Definir</span>
+                            ) : (
+                              `R$ ${cost.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <Badge variant="warning">
+                              {cost.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2 text-secondary-700">{new Date(cost.cost_date).toLocaleDateString('pt-BR')}</td>
+                          <td className="px-4 py-2 text-secondary-700">{cost.vehicles?.plate || '-'}</td>
+                          <td className="px-4 py-2 text-secondary-700">{cost.customers?.name || '-'}</td>
+                          <td className="px-4 py-2 text-secondary-700">
+                            {cost.employees?.name || cost.created_by_name || (cost.origin === 'Sistema' ? 'Sistema' : '-')}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-row gap-2">
+                              <Button
+                                onClick={() => handleView(cost)}
+                                variant="secondary"
+                                size="sm"
+                                className="text-xs"
+                              >
+                                Visualizar
+                              </Button>
+                              {(isAdmin || isManager) && (
+                                <Button
+                                  onClick={() => handleEdit(cost)}
+                                  variant="secondary"
+                                  size="sm"
+                                  className="text-xs"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                              {/* Botão Aprovar Multa - para custos de multas pendentes */}
+                              {cost.status === 'Pendente' && cost.category === 'Multa' && (isAdmin || isManager) && (
+                                <Button
+                                  onClick={() => handleApproveFine(cost)}
+                                  variant="success"
+                                  size="sm"
+                                  className="text-xs"
+                                >
+                                  Aprovar Multa
+                                </Button>
+                              )}
+                              {/* Botão Reverter Aprovação - para custos de multas autorizadas */}
+                              {cost.status === 'Autorizado' && cost.category === 'Multa' && (isAdmin || isManager) && (
+                                <Button
+                                  onClick={() => handleRevertFineApproval(cost)}
+                                  variant="warning"
+                                  size="sm"
+                                  className="text-xs"
+                                >
+                                  Reverter
+                                </Button>
+                              )}
+                              {/* Botão Adicionar Orçamento - sempre visível para custos pendentes e zerados */}
+                              {cost.status === 'Pendente' && cost.amount === 0 &&
+                                ((['Funilaria', 'Avaria'].includes(cost.category) || cost.origin === 'Patio')) && (
+                                  <Button
+                                    onClick={() => handleEditEstimate(cost)}
+                                    variant="primary"
+                                    size="sm"
+                                    className="text-xs"
+                                  >
+                                    Adicionar Orçamento
+                                  </Button>
+                                )
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center mt-4 p-4">
                 <button
                   className="px-3 py-1 rounded bg-secondary-100 text-secondary-700 disabled:opacity-50"
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}

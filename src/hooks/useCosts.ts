@@ -383,6 +383,66 @@ export const useCosts = (vehicleId?: string) => {
     return data;
   };
 
+  // Approve fine cost (synchronizes with fine status)
+  const approveFineCost = async (costId: string) => {
+    try {
+      const { data, error } = await supabase
+        .rpc('fn_approve_fine_cost', { p_cost_id: costId });
+
+      if (error) throw error;
+      
+      if (data && data.success) {
+        // Refresh costs to show updated status
+        await fetchCosts();
+        toast.success(data.message || 'Multa aprovada com sucesso');
+        return data;
+      } else {
+        throw new Error(data?.message || 'Erro ao aprovar multa');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao aprovar multa';
+      toast.error(message);
+      throw new Error(message);
+    }
+  };
+
+  // Revert fine approval
+  const revertFineApproval = async (costId: string) => {
+    try {
+      const { data, error } = await supabase
+        .rpc('fn_revert_fine_approval', { p_cost_id: costId });
+
+      if (error) throw error;
+      
+      if (data && data.success) {
+        // Refresh costs to show updated status
+        await fetchCosts();
+        toast.success(data.message || 'Aprovação da multa revertida com sucesso');
+        return data;
+      } else {
+        throw new Error(data?.message || 'Erro ao reverter aprovação da multa');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao reverter aprovação da multa';
+      toast.error(message);
+      throw new Error(message);
+    }
+  };
+
+  // Get pending fine costs
+  const getPendingFineCosts = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('fn_get_pending_fine_costs');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching pending fine costs:', error);
+      return [];
+    }
+  };
+
   // Função para buscar multas, batidas e combustível do banco de dados
   const fetchRealCosts = async () => {
     try {
@@ -704,6 +764,9 @@ export const useCosts = (vehicleId?: string) => {
     generateBillingCosts,
     getBillingStatistics,
     markAsPaid,
+    approveFineCost,
+    revertFineApproval,
+    getPendingFineCosts,
     getCostParts,
     refetch: fetchCosts
   };
